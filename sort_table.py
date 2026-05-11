@@ -16,38 +16,43 @@ def get_github_stars(repo_slug):
         return -1  # Return -1 to indicate an error, will be sorted to the bottom
 
 def sort_markdown_table(markdown_content):
-    # Find the table header and separator
-    header_match = re.search(r'\|<ins>#</ins>.*?\|', markdown_content)
-    separator_match = re.search(r'\|---|---|---|---|---|---|', markdown_content)
+    lines = markdown_content.splitlines()
+    header_index = None
 
-    if not header_match or not separator_match:
+    for index, line in enumerate(lines):
+        if re.match(r'^\s*\|.*<ins>#</ins>.*\|\s*$', line):
+            header_index = index
+            break
+
+    if header_index is None:
         print("Table header or separator not found.")
         return markdown_content
 
-    # Content before the table starts at the beginning of the file and ends at the start of the header line.
-    content_before_table = markdown_content[:header_match.start()]
+    separator_index = header_index + 1
+    if separator_index >= len(lines):
+        print("Table header or separator not found.")
+        return markdown_content
 
-    # The table block starts at header_match.start() and ends at table_body_end_index.
-    # We need to find the end of the table body.
-    table_body_start_index = separator_match.end()
-    search_start_for_next_heading = table_body_start_index
-    next_heading_match = re.search(r'\n##', markdown_content[search_start_for_next_heading:])
-    
-    if next_heading_match:
-        table_body_end_index = search_start_for_next_heading + next_heading_match.start()
-    else:
-        table_body_end_index = len(markdown_content) # If no next heading, table goes to end of file
+    separator_line = lines[separator_index]
+    separator_pattern = r'^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$'
+    if not re.match(separator_pattern, separator_line):
+        print("Table header or separator not found.")
+        return markdown_content
 
-    # Content after the table starts from table_body_end_index to the end of the file.
-    content_after_table = markdown_content[table_body_end_index:]
+    table_body_end_index = len(lines)
+    for index in range(separator_index + 1, len(lines)):
+        if lines[index].startswith("##"):
+            table_body_end_index = index
+            break
 
-    # Extract the original header line and separator line to reconstruct the new table block
-    original_header_line = markdown_content[header_match.start():header_match.end()]
-    original_separator_line = markdown_content[separator_match.start():separator_match.end()]
+    content_before_table = "\n".join(lines[:header_index])
+    content_after_table = "\n".join(lines[table_body_end_index:])
+
+    original_header_line = lines[header_index]
+    original_separator_line = separator_line
 
     # Extract table body rows
-    table_body_raw = markdown_content[separator_match.end():table_body_end_index].strip()
-    rows = table_body_raw.split('\n')
+    rows = lines[separator_index + 1:table_body_end_index]
     
     parsed_repos = []
 
@@ -102,22 +107,33 @@ def sort_markdown_table(markdown_content):
     new_table_body = "\n".join(sorted_rows)
     
     # Construct the new full table block
-    new_full_table_block = original_header_line + original_separator_line + "\n" + new_table_body + "\n"
+    new_full_table_block = original_header_line + "\n" + original_separator_line + "\n" + new_table_body + "\n"
 
     # Construct the full new markdown content
-    new_markdown_content = content_before_table + new_full_table_block + content_after_table
+    parts = []
+    if content_before_table:
+        parts.append(content_before_table)
+    parts.append(new_full_table_block.rstrip("\n"))
+    if content_after_table:
+        parts.append(content_after_table)
+    new_markdown_content = "\n".join(parts)
 
     return new_markdown_content
 
-# Main execution
-file_path = r"C:\Users\ishan\Documents\Projects\Top-AI-repos\README.md"
+DEFAULT_FILE_PATH = r"C:\Users\ishan\Documents\Projects\Top-AI-repos\README.md"
 
-with open(file_path, 'r', encoding='utf-8') as f:
-    content = f.read()
 
-updated_content = sort_markdown_table(content)
+def main(file_path=DEFAULT_FILE_PATH):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
 
-with open(file_path, 'w', encoding='utf-8') as f:
-    f.write(updated_content)
+    updated_content = sort_markdown_table(content)
 
-print("Table sorting complete. Check README.md")
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(updated_content)
+
+    print("Table sorting complete. Check README.md")
+
+
+if __name__ == "__main__":
+    main()
